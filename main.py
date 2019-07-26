@@ -1,23 +1,15 @@
 """
-author: margorp
-objective: Demonstrate how to use PyQt5 to build a gui application which can allow addition of plugin.
 """
 
-import os, sys, json, importlib
+import os, sys, importlib, json
 from PyQt5.QtWidgets import *
 from PyQt5.QtWebEngineWidgets import *
-from PyQt5.QtGui import *
 from PyQt5.QtCore import *
+from PyQt5.QtGui import *
 
-# Settings
-VERSION = '1.0.0'
-WIN_TITLE = 'Horse Project ' + VERSION
-WIN_X = 0
-WIN_Y = 20
-WIN_W = 600
-WIN_H = 400
-WIN_QMENU_NAMES = ['&Plugins']
-PLUGINS_PARENT_FOLDER_NAME = 'Plugins'
+WIN_TITLE = 'PyQt5 Plugin Demo'
+WIN_X, WIN_Y, WIN_WIDTH, WIN_HEIGHT = [0, 20, 400, 300]
+MENU_NAMES = ['&Plugins']
 
 class Window(QMainWindow):
     def __init__(self):
@@ -25,43 +17,46 @@ class Window(QMainWindow):
         self.init_ui()
     def init_ui(self):
         self.setWindowTitle(WIN_TITLE)
-        self.setGeometry(WIN_X, WIN_Y, WIN_W, WIN_H)
-        self.init_menu(WIN_QMENU_NAMES)            
-        self.init_plugins(PLUGINS_PARENT_FOLDER_NAME)
-    def init_menu(self, qm_names):
-        self.qmenus = {}
-        for qm_name in qm_names:
-            qm = QMenu(qm_name, self)
-            self.menuBar().addMenu(qm)
-            qm_name = qm_name.replace('&','')
-            self.qmenus[qm_name] = qm
-    def get_plugin_folder_names(self, plugin_parent_folder_name):
-        assert(os.path.isdir(plugin_parent_folder_name), 'Error: no plugin folder %s is found' % plugin_parent_folder_name)
-        plugin_folder_names = []
-        for plugin_folder_name in os.listdir(plugin_parent_folder_name):
-            plugin_folder_path = os.path.join(plugin_parent_folder_name, plugin_folder_name)
-            if plugin_folder_name.startswith('__') or not os.path.isdir(plugin_folder_path): continue
-            plugin_folder_names.append(plugin_folder_name)
-        return plugin_folder_names
-    def init_plugins(self, plugin_parent_folder_name):        
-        plugin_folder_names = self.get_plugin_folder_names(plugin_parent_folder_name)
+        self.setGeometry(WIN_X, WIN_Y, WIN_WIDTH, WIN_HEIGHT)
+        self.init_menu(MENU_NAMES)
+        pass
+    def init_menu(self, menu_names):
+        self.QMenus = {}
+        for menu_name in menu_names:
+            menu_name = menu_name.replace('&','')
+            qMenu = QMenu(menu_name, self)
+            self.menuBar().addMenu(qMenu)
+            self.QMenus[menu_name] = qMenu
+        self.init_plugins()
+    def get_plugin_names(self):
+        plugin_names = os.listdir('Plugins')
+        return plugin_names
+    def init_plugins(self):
         self.plugins = {}
-        for plugin_folder_name in plugin_folder_names:
-            qm = self.qmenus['Plugins']
-            qm.addAction(QAction(plugin_folder_name, self))
-            plugin_namespace = '.'.join([plugin_parent_folder_name, plugin_folder_name, 'main'])
+        qMenu = self.QMenus['Plugins']
+        plugin_names = self.get_plugin_names()
+        for plugin_name in plugin_names:
+            qAction = QAction(plugin_name, qMenu)
+            qAction.triggered.connect(self.on_click)
+            qMenu.addAction(qAction)
+            manifest_path = os.path.join('Plugins', plugin_name, 'manifest.json')
+            with open(manifest_path, 'r') as f:
+                manifest_text = f.read()
+            manifest_data = json.loads(manifest_text)
+            main_name = manifest_data['name']
+            plugin_namespace = '.'.join(['Plugins', plugin_name, main_name])
             plugin = importlib.import_module(plugin_namespace)
-            self.plugins[plugin_folder_name] = plugin        
+            self.plugins[plugin_name] = plugin
     def on_click(self):
         sender_name = self.sender().text()
-        print(sender_name)
-        if sender_name in self.plugins:            
+        if sender_name in self.plugins:
             plugin = self.plugins[sender_name]
-            sub_window = plugin.Window(self)
-            sub_window.show()
+            plugin_window = plugin.Window(self)
+            plugin_window.show()
+
 if __name__ == '__main__':
     app = QApplication([])
     window = Window()
     window.show()
-    exit_code = app.exec_()
-    sys.exit(exit_code)
+    status = app.exec_()
+    sys.exit(status)
